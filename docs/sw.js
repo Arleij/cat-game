@@ -1,6 +1,6 @@
 /* Kurosuke offline cache.
    Bump CACHE after changing index.html so the old copy is thrown away. */
-var CACHE='kurosuke-v1';
+var CACHE='kurosuke-v2';
 var ASSETS=['./','./index.html','./manifest.webmanifest','./icon-192.png'];
 
 self.addEventListener('install',function(e){

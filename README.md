@@ -40,7 +40,17 @@ the top button once the game is open. The cat then cannot swipe out of it.
 ## Settings
 
 Hold the **top-left corner** for one second — long enough that a paw won't do it by accident.
-Creatures (1–3), speed, size, catch sound, bird chirps, keep-screen-on, score.
+Creatures (1–3), speed, size, colour, catch sound, bird chirps, keep-screen-on, score,
+and a **Test sound** button that reports the audio state.
+
+Five colour themes (`THEMES` in the script): Sage (the video's look), Paper, Sky, Butter
+and Night. Night inverts to a pale creature on near-black. Each is picked for luminance
+contrast first — cats are dichromats, so contrast reads to them far better than hue does.
+
+**Sound on iPadOS** needs two things, and the original build had neither:
+`navigator.audioSession.type = 'playback'` (Safari 16.4+), or the ringer switch mutes it;
+and notes must be scheduled only once the AudioContext is genuinely `running`, since
+`resume()` is async and anything scheduled against a suspended context is dropped.
 Settings and score persist in the browser.
 
 ## How the creature moves

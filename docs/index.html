@@ -45,6 +45,8 @@
   .foot button{flex:1;appearance:none;border:none;border-radius:13px;padding:14px;
     font-size:15px;font-family:inherit;cursor:pointer;background:#dde4d1;color:#414a37}
   .foot button.primary{background:#1a1f16;color:#F4F7EC}
+  .diag{margin-top:10px;font-size:12px;color:#8b9680;text-align:center;
+    font-variant-numeric:tabular-nums;min-height:1.2em}
   .tip{margin-top:15px;font-size:12.5px;line-height:1.6;color:#828d75;
     border-top:1px solid #e0e6d5;padding-top:13px}
   .tip b{color:#5d6853;font-weight:600}
@@ -59,14 +61,21 @@
   <p class="sub">Hold the top-left corner of the screen for one second to get back here.</p>
   <div id="opts"></div>
   <div class="foot">
+    <button id="test">Test sound</button>
     <button id="fs">Fullscreen</button>
+  </div>
+  <div class="foot">
     <button id="reset">Reset score</button>
     <button id="done" class="primary">Play</button>
   </div>
+  <p class="diag" id="diag"></p>
   <p class="tip">
     <b>Stop your cat escaping the app:</b> turn on Guided Access in
     Settings &rsaquo; Accessibility &rsaquo; Guided Access, then triple-click the
     top button once the game is open. Paws can&rsquo;t swipe out of it.<br><br>
+    <b>No sound?</b> iPads silence Web Audio when the ringer is muted. Open Control
+    Centre (swipe down from the top-right), unmute the bell, and turn the volume up.
+    Then tap <b>Test sound</b> above.<br><br>
     <b>Claws:</b> a screen protector is a good idea.
   </p>
 </div></div>
@@ -76,13 +85,35 @@
 var cv=document.getElementById('c'), ctx=cv.getContext('2d',{alpha:false});
 var scoreEl=document.getElementById('score'), hintEl=document.getElementById('hint');
 var panel=document.getElementById('panel');
-var TAU=Math.PI*2, BG='#EAEFE0', INK='#101010';
+var TAU=Math.PI*2;
+/* Cats are dichromats: they see blue and yellow-green, barely any red, and
+   read luminance contrast far better than hue. Every pair below is a strong
+   light/dark contrast first and a colour second. */
+var THEMES={
+  sage:  {bg:'#EAEFE0', ink:'#101010', eye:'#FFFFFF', dim:'#9AA78C'},
+  paper: {bg:'#F6F4EE', ink:'#14140F', eye:'#FFFFFF', dim:'#A9A599'},
+  sky:   {bg:'#DCE9F2', ink:'#0E1418', eye:'#FFFFFF', dim:'#8FA5B4'},
+  butter:{bg:'#F4E7C0', ink:'#14110A', eye:'#FFFFFF', dim:'#B3A57B'},
+  night: {bg:'#12151A', ink:'#E8ECE0', eye:'#12151A', dim:'#59616B'}
+};
+var BG='#EAEFE0', INK='#101010', EYE='#FFFFFF', INKRGB='16,16,16';
+function applyTheme(){
+  var t=THEMES[cfg.theme]||THEMES.sage;
+  BG=t.bg; INK=t.ink; EYE=t.eye;
+  INKRGB=[parseInt(t.ink.substr(1,2),16),parseInt(t.ink.substr(3,2),16),
+          parseInt(t.ink.substr(5,2),16)].join(',');
+  document.documentElement.style.background=BG;
+  document.body.style.background=BG;
+  hintEl.style.color=t.dim; scoreEl.style.color=t.dim;
+  var m=document.querySelector('meta[name=theme-color]');
+  if(m) m.setAttribute('content',BG);
+}
 function rnd(a,b){return a+Math.random()*(b-a);}
 function clamp(v,a,b){return v<a?a:(v>b?b:v);}
 function angDiff(a,b){var d=(a-b)%TAU; if(d>Math.PI)d-=TAU; if(d<-Math.PI)d+=TAU; return d;}
 
 /* ---------------- settings ---------------- */
-var DEF={count:1,speed:'normal',size:'mixed',sound:true,chirp:true,awake:true,score:0};
+var DEF={count:1,speed:'normal',size:'mixed',theme:'sage',sound:true,chirp:true,awake:true,score:0};
 var cfg={}; for(var k in DEF) cfg[k]=DEF[k];
 try{var st=localStorage.getItem('kurosuke'); if(st){var o=JSON.parse(st); for(var j in DEF) if(j in o) cfg[j]=o[j];}}catch(e){}
 function save(){try{localStorage.setItem('kurosuke',JSON.stringify(cfg));}catch(e){}}
@@ -114,13 +145,40 @@ function resize(){
 var ac=null;
 function audio(){
   try{
-    if(!ac){var A=window.AudioContext||window.webkitAudioContext; if(!A) return null; ac=new A();}
-    if(ac.state==='suspended') ac.resume();
-  }catch(e){return null;}
+    if(!ac){
+      var A=window.AudioContext||window.webkitAudioContext; if(!A) return null;
+      ac=new A();
+      /* iPadOS mutes Web Audio whenever the ringer is silenced. Declaring the
+         session as playback (Safari 16.4+) makes it sound anyway. */
+      try{ if(navigator.audioSession) navigator.audioSession.type='playback'; }catch(e){}
+    }
+  }catch(e){ return null; }
   return ac;
 }
+/* resume() is async: scheduling a note before the context is actually running
+   silently drops it, which is why the first taps made no sound at all. */
+function withAudio(fn){
+  var a=audio(); if(!a) return;
+  if(a.state==='running'){ fn(a); return; }
+  try{
+    var p=a.resume();
+    if(p&&p.then) p.then(function(){ fn(a); },function(){}); else fn(a);
+  }catch(e){}
+}
+function unlock(){
+  /* a silent one-sample blip inside the first touch starts the context on iOS */
+  withAudio(function(a){
+    try{
+      var b=a.createBuffer(1,1,22050), s=a.createBufferSource();
+      s.buffer=b; s.connect(a.destination); s.start(0);
+    }catch(e){}
+  });
+}
 function squeak(){
-  if(!cfg.sound) return; var a=audio(); if(!a) return;
+  if(!cfg.sound) return;
+  withAudio(function(a){ blip(a); });
+}
+function blip(a){
   var t=a.currentTime, o=a.createOscillator(), g=a.createGain();
   o.type='sine'; o.frequency.setValueAtTime(880,t);
   o.frequency.exponentialRampToValueAtTime(170,t+0.13);
@@ -130,7 +188,8 @@ function squeak(){
   o.connect(g); g.connect(a.destination); o.start(t); o.stop(t+0.18);
 }
 function chirp(){
-  if(!cfg.chirp) return; var a=audio(); if(!a) return;
+  if(!cfg.chirp) return;
+  withAudio(function(a){
   var t=a.currentTime;
   for(var i=0;i<3;i++){
     var s=t+i*0.075, o=a.createOscillator(), g=a.createGain();
@@ -142,6 +201,7 @@ function chirp(){
     g.gain.exponentialRampToValueAtTime(0.0001,s+0.05);
     o.connect(g); g.connect(a.destination); o.start(s); o.stop(s+0.06);
   }
+  });
 }
 var nextChirp=6+Math.random()*10;
 
@@ -373,7 +433,7 @@ Sprite.prototype.draw=function(){
   for(var s=-1;s<=1;s+=2){
     var sc=s<0?this.eyeA:this.eyeB, e=er*sc;
     var ex=this.x+fx*fwd+px*sep*s, ey=this.y+fy*fwd+py*sep*s;
-    ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(ex,ey,e,0,TAU); ctx.fill();
+    ctx.fillStyle=EYE; ctx.beginPath(); ctx.arc(ex,ey,e,0,TAU); ctx.fill();
     ctx.fillStyle=INK; ctx.beginPath();
     ctx.arc(ex+fx*e*0.34,ey+fy*e*0.34,e*0.44,0,TAU); ctx.fill();
   }
@@ -401,7 +461,7 @@ function pawList(){
 var started=false;
 function begin(){
   if(started) return; started=true;
-  audio(); wake();
+  unlock(); wake();
   hintEl.style.opacity='0';
 }
 function tryCatch(x,y){
@@ -457,6 +517,8 @@ var SPEC=[
   {k:'count',label:'Creatures',opts:[[1,'1'],[2,'2'],[3,'3']]},
   {k:'speed',label:'Speed',opts:[['calm','Calm'],['normal','Normal'],['frisky','Frisky']]},
   {k:'size',label:'Size',opts:[['small','Small'],['mixed','Mixed'],['big','Big']]},
+  {k:'theme',label:'Colour',opts:[['sage','Sage'],['paper','Paper'],['sky','Sky'],
+    ['butter','Butter'],['night','Night']]},
   {k:'sound',label:'Catch sound',opts:[[true,'On'],[false,'Off']]},
   {k:'chirp',label:'Bird chirps',opts:[[true,'On'],[false,'Off']]},
   {k:'awake',label:'Keep screen on',opts:[[true,'On'],[false,'Off']]}
@@ -492,6 +554,18 @@ document.getElementById('done').addEventListener('click',function(){ panel.hidde
 document.getElementById('reset').addEventListener('click',function(){
   cfg.score=0; scoreEl.textContent='0'; save();
 });
+document.getElementById('test').addEventListener('click',function(){
+  var d=document.getElementById('diag');
+  var a=audio();
+  if(!a){ d.textContent='This browser has no Web Audio at all.'; return; }
+  d.textContent='starting\u2026';
+  withAudio(function(ctx2){ blip(ctx2); });
+  setTimeout(function(){
+    d.textContent='audio: '+(ac?ac.state:'none')
+      +' \u00b7 ringer override: '+(navigator.audioSession?'yes':'not supported')
+      +' \u00b7 volume: check Control Centre';
+  },350);
+});
 document.getElementById('fs').addEventListener('click',function(){
   var el=document.documentElement;
   try{
@@ -508,6 +582,7 @@ var sprites=[];
 function applyCfg(which){
   while(sprites.length<cfg.count) sprites.push(new Sprite());
   sprites.length=cfg.count;
+  if(which==='theme'||which===undefined) applyTheme();
   if(which==='speed'||which==='size'||which===undefined)
     for(var i=0;i<sprites.length;i++) sprites[i].reset();
 }
@@ -553,14 +628,14 @@ function draw(){
   var i;
   for(i=0;i<rings.length;i++){
     var g=rings[i];
-    ctx.strokeStyle='rgba(150,163,132,'+(g.life*0.32).toFixed(3)+')';
+    ctx.strokeStyle='rgba('+INKRGB+','+(g.life*0.20).toFixed(3)+')';
     ctx.lineWidth=2.5*S+1;
     ctx.beginPath(); ctx.arc(g.x,g.y,g.r,0,TAU); ctx.stroke();
   }
   for(i=0;i<sprites.length;i++) sprites[i].draw();
   for(i=0;i<pops.length;i++){
     var q=pops[i];
-    ctx.fillStyle='rgba(16,16,16,'+clamp(q.life,0,1).toFixed(3)+')';
+    ctx.fillStyle='rgba('+INKRGB+','+clamp(q.life,0,1).toFixed(3)+')';
     ctx.beginPath(); ctx.arc(q.x,q.y,q.r*clamp(q.life,0,1),0,TAU); ctx.fill();
   }
 }
