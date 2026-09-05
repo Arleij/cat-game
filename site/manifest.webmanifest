@@ -1,0 +1,13 @@
+{
+  "name": "Kurosuke",
+  "short_name": "Cat Game",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#EAEFE0",
+  "theme_color": "#EAEFE0",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" }
+  ]
+}
