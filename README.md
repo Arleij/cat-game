@@ -7,8 +7,8 @@ green screen, ducks away, and comes back. Tap it and it pops. Modelled on the
 ## Files
 
 - `catgame.html` — the whole game, one self-contained file. Source of truth.
-- `site/` — the same game as an installable offline web app. **Upload this folder's
-  contents to host it.** Built from `catgame.html`; don't edit it by hand.
+- `docs/` — the same game as an installable offline web app; this is what GitHub
+  Pages serves. Built from `catgame.html`; don't edit it by hand.
   - `index.html` — the game plus a service-worker registration
   - `sw.js` — caches the app on the iPad so it opens with no network
   - `manifest.webmanifest` — makes it install as a standalone app
@@ -16,13 +16,13 @@ green screen, ducks away, and comes back. Tap it and it pops. Modelled on the
 - `artifact.html` — same game, wrapper tags stripped, for hosting as a Claude artifact.
 - `icon.png` — 180×180 home-screen icon (also embedded in `catgame.html`).
 
-After editing `catgame.html`, rebuild `site/` and bump `CACHE` in `site/sw.js`
+After editing `catgame.html`, rebuild `docs/` and bump `CACHE` in `docs/sw.js`
 (e.g. `kurosuke-v1` → `kurosuke-v2`) so installed copies pick up the new version.
 
 ## Put it on the iPad as a real app
 
-Upload the **contents of `site/`** to any static https host (GitHub Pages, Netlify,
-Cloudflare Pages), open that URL in Safari on the iPad, then Share → **Add to Home Screen**.
+Live at **https://arleij.github.io/cat-game/** (served from `docs/` on `main`).
+Open it in Safari on the iPad, then Share → **Add to Home Screen**.
 
 It carries `apple-mobile-web-app-capable` and a standalone manifest, so it launches from
 the icon with no Safari UI at all — no address bar, no tabs for a paw to hit. The service
