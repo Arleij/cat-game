@@ -85,22 +85,45 @@ var cv=document.getElementById('c'), ctx=cv.getContext('2d',{alpha:false});
 var scoreEl=document.getElementById('score'), hintEl=document.getElementById('hint');
 var panel=document.getElementById('panel');
 var TAU=Math.PI*2;
-/* Cats are dichromats: they see blue and yellow-green, barely any red, and
-   read luminance contrast far better than hue. Every pair below is a strong
-   light/dark contrast first and a colour second. */
 var THEMES={
-  sage:  {bg:'#EAEFE0', ink:'#101010', eye:'#FFFFFF', dim:'#9AA78C'},
-  paper: {bg:'#F6F4EE', ink:'#14140F', eye:'#FFFFFF', dim:'#A9A599'},
-  sky:   {bg:'#DCE9F2', ink:'#0E1418', eye:'#FFFFFF', dim:'#8FA5B4'},
-  butter:{bg:'#F4E7C0', ink:'#14110A', eye:'#FFFFFF', dim:'#B3A57B'},
-  night: {bg:'#12151A', ink:'#E8ECE0', eye:'#12151A', dim:'#59616B'}
+  sage:  {bg:'#EAEFE0', dim:'#9AA78C'},
+  paper: {bg:'#F6F4EE', dim:'#A9A599'},
+  sky:   {bg:'#DCE9F2', dim:'#8FA5B4'},
+  butter:{bg:'#F4E7C0', dim:'#B3A57B'},
+  night: {bg:'#12151A', dim:'#59616B'}
 };
-var BG='#EAEFE0', INK='#101010', EYE='#FFFFFF', INKRGB='16,16,16';
+/* Two shades of each colour: the deep one for pale backgrounds, the bright one
+   for Night. Cats are dichromats - they see blue and green well and almost no
+   red - and they track the light/dark silhouette far more than the hue. So
+   every one of these 25 pairings was measured to clear 4:1 contrast. The hues
+   are then as vivid as that budget allows, because the colour is for the human
+   - to the cat, orange and brown are the same dark shape. */
+var INKS={
+  black: {light:'#101010', dark:'#E8ECE0'},
+  green: {light:'#1E7A32', dark:'#6FE08A'},
+  blue:  {light:'#1A55B0', dark:'#74B6FF'},
+  orange:{light:'#B85209', dark:'#FFA24D'},
+  red:   {light:'#B81C2A', dark:'#FF7A80'}
+};
+var BG='#EAEFE0', INK='#1E7A32', EYE='#FFFFFF', INKRGB='30,122,50';
+function rgbOf(h){
+  return [parseInt(h.substr(1,2),16),parseInt(h.substr(3,2),16),parseInt(h.substr(5,2),16)];
+}
+function relLum(h){
+  var c=rgbOf(h), f=[];
+  for(var i=0;i<3;i++){ var v=c[i]/255;
+    f[i]=v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4); }
+  return 0.2126*f[0]+0.7152*f[1]+0.0722*f[2];
+}
 function applyTheme(){
   var t=THEMES[cfg.theme]||THEMES.sage;
-  BG=t.bg; INK=t.ink; EYE=t.eye;
-  INKRGB=[parseInt(t.ink.substr(1,2),16),parseInt(t.ink.substr(3,2),16),
-          parseInt(t.ink.substr(5,2),16)].join(',');
+  BG=t.bg;
+  var onDark=relLum(BG)<0.18;
+  var pair=INKS[cfg.ink]||INKS.black;
+  INK=onDark?pair.dark:pair.light;
+  /* eyes always oppose the body, so they read on a pale or a bright creature */
+  EYE=relLum(INK)<0.35?'#FFFFFF':(onDark?BG:'#101010');
+  INKRGB=rgbOf(INK).join(',');
   document.documentElement.style.background=BG;
   document.body.style.background=BG;
   hintEl.style.color=t.dim; scoreEl.style.color=t.dim;
@@ -112,7 +135,7 @@ function clamp(v,a,b){return v<a?a:(v>b?b:v);}
 function angDiff(a,b){var d=(a-b)%TAU; if(d>Math.PI)d-=TAU; if(d<-Math.PI)d+=TAU; return d;}
 
 /* ---------------- settings ---------------- */
-var DEF={count:1,speed:'normal',size:'mixed',theme:'sage',sound:true,chirp:true,awake:true,score:0};
+var DEF={count:1,speed:'normal',size:'mixed',ink:'green',theme:'sage',sound:true,chirp:true,awake:true,score:0};
 var cfg={}; for(var k in DEF) cfg[k]=DEF[k];
 try{var st=localStorage.getItem('kurosuke'); if(st){var o=JSON.parse(st); for(var j in DEF) if(j in o) cfg[j]=o[j];}}catch(e){}
 function save(){try{localStorage.setItem('kurosuke',JSON.stringify(cfg));}catch(e){}}
@@ -516,7 +539,9 @@ var SPEC=[
   {k:'count',label:'Creatures',opts:[[1,'1'],[2,'2'],[3,'3']]},
   {k:'speed',label:'Speed',opts:[['calm','Calm'],['normal','Normal'],['frisky','Frisky']]},
   {k:'size',label:'Size',opts:[['small','Small'],['mixed','Mixed'],['big','Big']]},
-  {k:'theme',label:'Colour',opts:[['sage','Sage'],['paper','Paper'],['sky','Sky'],
+  {k:'ink',label:'Creature',opts:[['green','Green'],['blue','Blue'],['orange','Orange'],
+    ['red','Red'],['black','Black']]},
+  {k:'theme',label:'Background',opts:[['sage','Sage'],['paper','Paper'],['sky','Sky'],
     ['butter','Butter'],['night','Night']]},
   {k:'sound',label:'Catch sound',opts:[[true,'On'],[false,'Off']]},
   {k:'chirp',label:'Bird chirps',opts:[[true,'On'],[false,'Off']]},
@@ -581,7 +606,7 @@ var sprites=[];
 function applyCfg(which){
   while(sprites.length<cfg.count) sprites.push(new Sprite());
   sprites.length=cfg.count;
-  if(which==='theme'||which===undefined) applyTheme();
+  if(which==='theme'||which==='ink'||which===undefined) applyTheme();
   if(which==='speed'||which==='size'||which===undefined)
     for(var i=0;i<sprites.length;i++) sprites[i].reset();
 }

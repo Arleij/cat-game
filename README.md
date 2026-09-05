@@ -43,9 +43,16 @@ Hold the **top-left corner** for one second — long enough that a paw won't do 
 Creatures (1–3), speed, size, colour, catch sound, bird chirps, keep-screen-on, score,
 and a **Test sound** button that reports the audio state.
 
-Five colour themes (`THEMES` in the script): Sage (the video's look), Paper, Sky, Butter
-and Night. Night inverts to a pale creature on near-black. Each is picked for luminance
-contrast first — cats are dichromats, so contrast reads to them far better than hue does.
+**Creature** colour (`INKS`): Green (default), Blue, Orange, Red, Black.
+**Background** (`THEMES`): Sage (the video's look), Paper, Sky, Butter, Night.
+
+Each creature colour has two shades — a deep one for the four pale backgrounds and a
+bright one for Night — so the creature is never lost against its ground. All 25
+pairings were measured to clear 4:1 WCAG contrast; within that budget the hues are as
+vivid as they can be. That split matters because the two audiences want different
+things: cats are dichromats who see blue and green well and almost no red, and they
+track the light/dark silhouette rather than the hue, so the contrast floor is for the
+cat and the hue is for the human. Orange and brown look identical to the cat.
 
 **Sound on iPadOS** needs two things, and the original build had neither:
 `navigator.audioSession.type = 'playback'` (Safari 16.4+), or the ringer switch mutes it;
